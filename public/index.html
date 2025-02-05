@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QGeoPortal</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { display: flex; }
+        .sidebar { width: 25%; padding: 10px; border-right: 2px solid #ccc; }
+        .main { flex-grow: 1; padding: 10px; }
+        .add-btn { cursor: pointer; font-size: 20px; }
+        .modal, .overlay { display: none; position: fixed; }
+        .overlay { top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 999; }
+        .modal { top: 50%; left: 50%; transform: translate(-50%, -50%);
+                 background: white; padding: 20px; border: 2px solid #333; z-index: 1000; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table, th, td { border: 1px solid #ccc; padding: 5px; }
+        .close-btn { cursor: pointer; float: right; font-size: 20px; }
+        ul { list-style-type: none; padding: 0; }
+        li { cursor: pointer; padding: 5px; }
+    </style>
+</head>
+<body>
+
+<h1>QGeoPortal</h1>
+
+<div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>Groups:</h2>
+        <ul id="groupList"></ul>
+        <button id="openGroupModal">➕ Add Group</button>
+        <h2>Maps:</h2>
+        <ul id="mapList"></ul>
+        <button id="openMapModal">➕ Add Map</button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+        <h2><span class="add-btn" id="openModal">➕</span> Add Item</h2>
+        <h3>Layers for <span id="selectedGroup">Ungrouped</span></h3>
+        <ul id="layerList"></ul>
+    </div>
+</div>
+
+<!-- group modal -->
+<div class="overlay" id="groupOverlay"></div>
+<div class="modal" id="groupModal">
+    <span class="close-btn" id="closeGroupModal">&times;</span>
+    <h2>Add Group</h2>
+    <label>Group Name:</label>
+    <input type="text" id="groupName"><br><br>
+    <button id="saveGroup">Save Group</button>
+</div>
+
+<!-- map modal -->
+<div class="overlay" id="mapOverlay"></div>
+<div class="modal" id="mapModal">
+    <span class="close-btn" id="closeMapModal">&times;</span>
+    <h2>Add Map</h2>
+    <label>Map Name:</label>
+    <input type="text" id="mapName"><br><br>
+    <label>Description:</label>
+    <input type="text" id="mapDescription"><br><br>
+    <button id="saveMap">Save Map</button>
+</div>
+
+
+<!-- layer Modal -->
+<div class="overlay" id="overlay"></div>
+<div class="modal" id="modal">
+    <span class="close-btn" id="closeModal">&times;</span>
+    <h2>Add Layer</h2>
+
+    <label>Title:</label>
+    <input type="text" id="layerTitle"><br><br>
+
+    <label>Description:</label>
+    <input type="text" id="layerDescription"><br><br>
+
+    <label>Group:</label>
+    <select id="groupSelect">
+        <option value="00000000-0000-0000-0000-000000000000">Ungrouped</option>
+    </select><br><br>
+
+    <label>Geometry Type:</label>
+    <select id="geomType">
+        <option value="POINT">Point</option>
+        <option value="POLYGON">Polygon</option>
+        <option value="LINESTRING">LineString</option>
+    </select><br><br>
+
+    <label>Coordinate Reference System (CRS):</label>
+    <select id="crsSelect">
+        <option value="4326">WGS 84 (EPSG:4326)</option>
+        <option value="27700">OSGB 1936 (EPSG:27700)</option>
+    </select>
+    <br>
+
+    <h3>Attribute Fields:</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Column Name</th>
+                <th>Data Type</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="attributeTable"></tbody>
+    </table>
+    <button id="addAttribute">➕ Add Column</button><br><br>
+
+    <button id="saveLayer">Save Layer</button>
+</div>
+
+<script>
+    async function loadGroups() {
+        const response = await fetch("http://localhost:3030/api/groups");
+        const groups = await response.json();
+        const groupSelect = document.getElementById("groupSelect");
+        const groupList = document.getElementById("groupList");
+
+        groupSelect.innerHTML = "";
+        groupList.innerHTML = "";
+
+        groups.forEach(group => {
+            const option = document.createElement("option");
+            option.value = group.id;
+            option.textContent = group.name;
+            groupSelect.appendChild(option);
+
+            const li = document.createElement("li");
+            li.textContent = group.name;
+            li.dataset.groupId = group.id;
+            li.addEventListener("click", () => {
+                document.getElementById("selectedGroup").textContent = group.name;
+                loadLayersByGroup(group.id);
+            });
+            groupList.appendChild(li);
+        });
+
+        // Ensure "Ungrouped" is always present
+        const ungroupedOption = document.createElement("option");
+        ungroupedOption.value = "00000000-0000-0000-0000-000000000000";
+        ungroupedOption.textContent = "Ungrouped";
+        groupSelect.appendChild(ungroupedOption);
+    }
+
+    async function loadLayersByGroup(groupId) {
+        const response = await fetch(`http://localhost:3030/api/groups/${groupId}/layers`);
+        const layers = await response.json();
+        const list = document.getElementById("layerList");
+
+        list.innerHTML = "";
+        layers.forEach(layer => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+                ${layer.display_name} (${layer.geom_type})
+                <button onclick="deleteLayer('${layer.id}')">❌</button>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    async function deleteLayer(layerId) {
+        if (!confirm("Are you sure you want to delete this layer?")) return;
+
+        const response = await fetch(`http://localhost:3030/api/layers/${layerId}`, { method: "DELETE" });
+        if (response.ok) {
+            alert("Layer deleted!");
+            loadLayersByGroup(document.getElementById("selectedGroup").dataset.groupId);
+        } else {
+            alert("Error deleting layer.");
+        }
+    }
+
+    async function loadMaps() {
+        const response = await fetch("http://localhost:3030/api/maps");
+        const maps = await response.json();
+        const mapList = document.getElementById("mapList");
+
+        mapList.innerHTML = "";
+        maps.forEach(map => {
+            const li = document.createElement("li");
+            li.textContent = map.name;
+            li.addEventListener("click", () => {
+                window.location.href = `map-settings.html?id=${map.id}`;
+            });
+            mapList.appendChild(li);
+        });
+    }
+
+    document.getElementById("openMapModal").addEventListener("click", () => {
+        document.getElementById("mapModal").style.display = "block";
+        document.getElementById("mapOverlay").style.display = "block";
+    });
+
+    document.getElementById("closeMapModal").addEventListener("click", () => {
+            document.getElementById("mapModal").style.display = "none";
+            document.getElementById("mapOverlay").style.display = "none";
+        });
+
+        document.getElementById("saveMap").addEventListener("click", async () => {
+        const name = document.getElementById("mapName").value;
+        const description = document.getElementById("mapDescription").value;
+
+        const response = await fetch("http://localhost:3030/api/maps", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description })
+        });
+
+        if (response.ok) {
+            alert("Map Created!");
+            document.getElementById("mapModal").style.display = "none";
+            document.getElementById("mapOverlay").style.display = "none";
+            loadMaps();
+        } else {
+            alert("Error creating map");
+        }
+    });
+
+
+    document.getElementById("openModal").addEventListener("click", () => {
+        document.getElementById("modal").style.display = "block";
+        document.getElementById("overlay").style.display = "block";
+        loadGroups(); 
+    });
+
+    document.getElementById("closeModal").addEventListener("click", () => {
+        document.getElementById("modal").style.display = "none";
+        document.getElementById("overlay").style.display = "none";
+    });
+
+    document.getElementById("addAttribute").addEventListener("click", () => {
+        const table = document.getElementById("attributeTable");
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+            <td><input type="text" placeholder="Column Name"></td>
+            <td>
+                <select>
+                    <option value="TEXT">Text</option>
+                    <option value="INT">Integer</option>
+                    <option value="FLOAT">Float</option>
+                    <option value="DATE">Date</option>
+                </select>
+            </td>
+            <td><button class="removeRow">❌</button></td>
+        `;
+
+        table.appendChild(row);
+    });
+
+    document.getElementById("attributeTable").addEventListener("click", (e) => {
+        if (e.target.classList.contains("removeRow")) {
+            e.target.parentElement.parentElement.remove();
+        }
+    });
+
+    document.getElementById("saveLayer").addEventListener("click", async () => {
+        const title = document.getElementById("layerTitle").value;
+        const description = document.getElementById("layerDescription").value;
+        const geomType = document.getElementById("geomType").value;
+        const groupId = document.getElementById("groupSelect").value;
+        const crs = document.getElementById("crsSelect").value;
+
+        const attributes = [];
+        document.querySelectorAll("#attributeTable tr").forEach(row => {
+            const name = row.children[0].querySelector("input").value;
+            const type = row.children[1].querySelector("select").value;
+            if (name) attributes.push({ name, type });
+        });
+
+        const response = await fetch("http://localhost:3030/api/layers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, description, geomType, attributes, groupId, crs })
+        });
+
+        if (response.ok) {
+            alert("Layer Created!");
+            location.reload();
+        } else {
+            alert("Error creating layer");
+        }
+    });
+
+    loadGroups();
+    loadLayersByGroup("00000000-0000-0000-0000-000000000000"); 
+    loadMaps();
+
+</script>
+
+<script>
+    document.getElementById("openGroupModal").addEventListener("click", () => {
+        document.getElementById("groupModal").style.display = "block";
+        document.getElementById("groupOverlay").style.display = "block";
+    });
+
+    document.getElementById("closeGroupModal").addEventListener("click", () => {
+        document.getElementById("groupModal").style.display = "none";
+        document.getElementById("groupOverlay").style.display = "none";
+    });
+
+    document.getElementById("saveGroup").addEventListener("click", async () => {
+        const name = document.getElementById("groupName").value;
+
+        const response = await fetch("http://localhost:3030/api/groups", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+        });
+
+        if (response.ok) {
+            alert("Group Created!");
+            document.getElementById("groupModal").style.display = "none";
+            document.getElementById("groupOverlay").style.display = "none";
+            loadGroups();
+        } else {
+            alert("Error creating group");
+        }
+    });
+
+</script>
+
+</body>
+</html>

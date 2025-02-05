@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        #map { height: 100vh; }
+    </style>
+</head>
+<body>
+
+<h1>Map Viewer</h1>
+<div id="map"></div>
+
+<script>
+    const mapId = new URLSearchParams(window.location.search).get("id");
+
+    const map = L.map("map").setView([51.505, -0.09], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+    async function loadLayers() {
+        try {
+            const response = await fetch(`http://localhost:3030/api/maps/${mapId}/layers`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const layers = await response.json();
+            
+            layers.forEach(layer => {
+                const geojsonUrl = `http://localhost:3030/api/layers/${layer.id}/geojson`;
+                fetch(geojsonUrl).then(res => res.json()).then(data => {
+                    L.geoJSON(data, {
+                        onEachFeature: (feature, layer) => {
+                            let popupContent = "<b>Attributes:</b><br>";
+                            Object.entries(feature.properties).forEach(([key, value]) => {
+                                popupContent += `<b>${key}</b>: ${value}<br>`;
+                            });
+                            layer.bindPopup(popupContent);
+                        }
+                    }).addTo(map);
+                });
+            });
+        } catch (error) {
+            console.error("Error loading layers for map:", error);
+        }
+    }
+
+    loadLayers();
+</script>
+
+</body>
+</html>

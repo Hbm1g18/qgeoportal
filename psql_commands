@@ -1,0 +1,38 @@
+CREATE TABLE groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT UNIQUE NOT NULL
+);
+
+INSERT INTO groups (id, name)
+VALUES ('00000000-0000-0000-0000-000000000000', 'Ungrouped')
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE layers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    table_name TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    description TEXT,
+    geom_type TEXT NOT NULL CHECK (geom_type IN ('POINT', 'POLYGON', 'LINESTRING')),
+    crs TEXT NOT NULL CHECK (crs IN ('4326', '27700')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    group_id UUID REFERENCES groups(id) ON DELETE SET NULL
+);
+
+CREATE TABLE group_layers (
+    group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+    layer_id UUID REFERENCES layers(id) ON DELETE CASCADE,
+    PRIMARY KEY (group_id, layer_id)
+);
+
+CREATE TABLE maps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE map_layers (
+    map_id UUID REFERENCES maps(id) ON DELETE CASCADE,
+    layer_id UUID REFERENCES layers(id) ON DELETE CASCADE,
+    PRIMARY KEY (map_id, layer_id)
+);
