@@ -8,43 +8,53 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <style>
         #map { height: 100vh; }
+        body { margin: 0; }
     </style>
 </head>
 <body>
 
-<h1>Map Viewer</h1>
 <div id="map"></div>
 
 <script>
     const mapId = new URLSearchParams(window.location.search).get("id");
 
-    const map = L.map("map").setView([51.505, -0.09], 13);
+    // Start with a world view
+    const map = L.map("map").setView([20, 0], 2);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
     async function loadLayers() {
         try {
             const response = await fetch(`http://localhost:3030/api/maps/${mapId}/layers`);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
 
             const layers = await response.json();
-            
-            layers.forEach(layer => {
+            let bounds = [];
+
+            for (const layer of layers) {
                 const geojsonUrl = `http://localhost:3030/api/layers/${layer.id}/geojson`;
-                fetch(geojsonUrl).then(res => res.json()).then(data => {
-                    L.geoJSON(data, {
-                        onEachFeature: (feature, layer) => {
-                            let popupContent = "<b>Attributes:</b><br>";
-                            Object.entries(feature.properties).forEach(([key, value]) => {
-                                popupContent += `<b>${key}</b>: ${value}<br>`;
-                            });
-                            layer.bindPopup(popupContent);
-                        }
-                    }).addTo(map);
-                });
-            });
+                const res = await fetch(geojsonUrl);
+                const data = await res.json();
+                
+                const geoLayer = L.geoJSON(data, {
+                    onEachFeature: (feature, layer) => {
+                        let popupContent = "<b>Attributes:</b><br>";
+                        Object.entries(feature.properties).forEach(([key, value]) => {
+                            popupContent += `<b>${key}</b>: ${value}<br>`;
+                        });
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(map);
+                
+                bounds.push(geoLayer.getBounds());
+            }
+
+            // Merge all bounds and fit map
+            if (bounds.length > 0) {
+                const combinedBounds = bounds.reduce((acc, b) => acc.extend(b), L.latLngBounds(bounds[0]));
+                map.fitBounds(combinedBounds);
+            }
+
         } catch (error) {
             console.error("Error loading layers for map:", error);
         }

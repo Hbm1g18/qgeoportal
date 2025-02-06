@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, "public"))); // Serve static files
 
 const pool = new Pool({
   user: "postgres",
-  host: "",
+  host: "192.168.1.124",
   database: "qgeoportal",
   password: "",
   port: 5432,

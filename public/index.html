@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QGeoPortal</title>
     <style>
-        body { font-family: Arial, sans-serif; }
+        body { font-family: Arial, sans-serif; margin: 0;}
         .container { display: flex; }
-        .sidebar { width: 25%; padding: 10px; border-right: 2px solid #ccc; }
+        .sidebar { width: 25%; padding: 10px; border-right: 2px solid #ccc; height: 100vh; display: flex; flex-direction: column; justify-content: top; align-items: center; }
         .main { flex-grow: 1; padding: 10px; }
         .add-btn { cursor: pointer; font-size: 20px; }
         .modal, .overlay { display: none; position: fixed; }
@@ -19,11 +19,19 @@
         .close-btn { cursor: pointer; float: right; font-size: 20px; }
         ul { list-style-type: none; padding: 0; }
         li { cursor: pointer; padding: 5px; }
+        #addlayerstyle{
+            transition: 0.2s ease-in-out;
+        }
+        #addlayerstyle:hover{
+            /* transform: scale(1.1); */
+            color: rgb(211, 197, 84);
+        }
     </style>
 </head>
 <body>
 
-<h1>QGeoPortal</h1>
+<h1 style="margin-left: 2vw; font-size: 5vh;">QGeoPortal</h1>
+<hr style="width: 100vw;">
 
 <div class="container">
     <!-- Sidebar -->
@@ -38,8 +46,8 @@
 
     <!-- Main Content -->
     <div class="main">
-        <h2><span class="add-btn" id="openModal">➕</span> Add Item</h2>
-        <h3>Layers for <span id="selectedGroup">Ungrouped</span></h3>
+        <h1>Layers for <span id="selectedGroup">Ungrouped</span></h1>
+        <h2 id="addlayerstyle"><span class="add-btn" id="openModal">➕</span> Add Item</h2>
         <ul id="layerList"></ul>
     </div>
 </div>
@@ -81,7 +89,7 @@
 
     <label>Group:</label>
     <select id="groupSelect">
-        <option value="00000000-0000-0000-0000-000000000000">Ungrouped</option>
+        <!-- <option value="00000000-0000-0000-0000-000000000000">Ungrouped</option> -->
     </select><br><br>
 
     <label>Geometry Type:</label>
@@ -141,10 +149,10 @@
         });
 
         // Ensure "Ungrouped" is always present
-        const ungroupedOption = document.createElement("option");
-        ungroupedOption.value = "00000000-0000-0000-0000-000000000000";
-        ungroupedOption.textContent = "Ungrouped";
-        groupSelect.appendChild(ungroupedOption);
+        // const ungroupedOption = document.createElement("option");
+        // ungroupedOption.value = "00000000-0000-0000-0000-000000000000";
+        // ungroupedOption.textContent = "Ungrouped";
+        // groupSelect.appendChild(ungroupedOption);
     }
 
     async function loadLayersByGroup(groupId) {
